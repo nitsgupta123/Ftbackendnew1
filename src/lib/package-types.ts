@@ -127,11 +127,18 @@ export interface PricingChildRow {
 export interface PricingPromotion {
   id: string;
   title: string;
-  validFrom: string;
-  validTo: string;
+  /** Dates the customer must book for this offer to apply. */
+  bookingFrom: string;
+  bookingTo: string;
+  /** Travel dates this offer applies to. Same range as the season travel window. */
+  travelFrom: string;
+  travelTo: string;
   discountType: DiscountType;
   value: string;
   active: boolean;
+  /** @deprecated Earlier drafts stored a single validity range. Read into bookingFrom/bookingTo. */
+  validFrom?: string;
+  validTo?: string;
 }
 
 export interface PricingBlackout {

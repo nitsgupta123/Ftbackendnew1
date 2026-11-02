@@ -25,8 +25,10 @@ function formValuesToRecord(
   return {
     id: existing?.id ?? nextId++,
     title: data.title.trim(),
-    valid_from: data.valid_from || null,
-    valid_to: data.valid_to || null,
+    booking_from: data.booking_from || null,
+    booking_to: data.booking_to || null,
+    travel_from: data.travel_from || null,
+    travel_to: data.travel_to || null,
     discount_type: data.discount_type,
     value: data.value,
     package_keys: data.package_keys,

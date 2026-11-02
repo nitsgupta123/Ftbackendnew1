@@ -47,6 +47,8 @@ export const NAV_ITEMS: NavItem[] = [
         label: "Settings",
         children: [
           { label: "Package Categories", href: "/packages/categories" },
+          { label: "Package Type", href: "/packages/types" },
+          { label: "Package Themes", href: "/packages/themes" },
           { label: "Pricing Rules", href: "/packages/pricing-rules" },
         ],
       },

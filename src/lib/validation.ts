@@ -96,6 +96,7 @@ export const packageBasicsSchema = z.object({
   nights: z.string().optional(),
   categories: z.array(z.string()).optional(),
   categoryIds: z.array(z.number().int().positive()).optional(),
+  packageThemes: z.array(z.string()).optional(),
   landingPages: z.array(z.string()).optional(),
   /** @deprecated Managed in Inclusions; kept optional for existing package data */
   domesticFlightsIncluded: z.boolean().optional(),
@@ -106,6 +107,7 @@ export const packageBasicsSchema = z.object({
   isSeasonalPackage: z.boolean(),
   /** @deprecated Managed in Inclusions; kept so existing Package Basics rows still load */
   importantInfo: z.string().optional(),
+  /** @deprecated Removed from Package Basics; kept so existing rows still load */
   frontendNotes: z.string().optional(),
 });
 
@@ -139,6 +141,28 @@ export const updateCategorySchema = createCategorySchema.partial();
 
 export type CreateCategoryFormValues = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryFormValues = z.infer<typeof updateCategorySchema>;
+
+export const createPackageCatalogSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  slug: z
+    .string()
+    .transform((value) => (value.trim() === "" ? undefined : value))
+    .pipe(
+      z
+        .string()
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase with hyphens only")
+        .optional()
+    )
+    .optional(),
+  description: z.string().optional().nullable(),
+  display_order: z.number().int().min(0, "Display order must be a non-negative number").optional(),
+  status: categoryStatusSchema.optional(),
+});
+
+export const updatePackageCatalogSchema = createPackageCatalogSchema.partial();
+
+export type CreatePackageCatalogFormValues = z.infer<typeof createPackageCatalogSchema>;
+export type UpdatePackageCatalogFormValues = z.infer<typeof updatePackageCatalogSchema>;
 
 const tieredMarkupBandSchema = z.object({
   min_pax: z.number().int().min(0).optional(),

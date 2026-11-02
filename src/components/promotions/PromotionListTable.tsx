@@ -18,14 +18,14 @@ const STATUS_STYLES: Record<string, string> = {
   inactive: "bg-gray-100 text-gray-600 ring-gray-500/10",
 };
 
-function formatValidFrom(value: string | null): string {
-  if (!value) return "Immediately";
-  return formatPackageDate(value);
-}
-
-function formatValidTo(value: string | null): string {
-  if (!value) return "No expiry";
-  return formatPackageDate(value);
+function formatWindow(
+  from: string | null,
+  to: string | null,
+  openStart: string,
+  openEnd: string
+): string {
+  if (!from && !to) return `${openStart} – ${openEnd}`;
+  return `${from ? formatPackageDate(from) : openStart} – ${to ? formatPackageDate(to) : openEnd}`;
 }
 
 function formatDiscountType(type: PromotionRecord["discount_type"]): string {
@@ -83,10 +83,10 @@ export default function PromotionListTable({
               Promotion Title
             </TableHead>
             <TableHead className="text-left px-4 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
-              Valid From
+              Booking window
             </TableHead>
             <TableHead className="text-left px-4 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
-              Valid To
+              Travel window
             </TableHead>
             <TableHead className="text-left px-4 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
               Discount Type
@@ -112,11 +112,11 @@ export default function PromotionListTable({
                 <div className="font-semibold text-[#1F2A44]">{promotion.title}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{packageCountLabel(promotion)}</div>
               </TableCell>
-              <TableCell className="px-4 py-3.5 text-gray-600">
-                {formatValidFrom(promotion.valid_from)}
+              <TableCell className="px-4 py-3.5 text-gray-600 whitespace-nowrap">
+                {formatWindow(promotion.booking_from, promotion.booking_to, "Immediately", "No expiry")}
               </TableCell>
-              <TableCell className="px-4 py-3.5 text-gray-600">
-                {formatValidTo(promotion.valid_to)}
+              <TableCell className="px-4 py-3.5 text-gray-600 whitespace-nowrap">
+                {formatWindow(promotion.travel_from, promotion.travel_to, "Any date", "Any date")}
               </TableCell>
               <TableCell className="px-4 py-3.5 text-gray-600">
                 {formatDiscountType(promotion.discount_type)}

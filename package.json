@@ -18,6 +18,7 @@
     "db:migrate:admin-role-string": "node scripts/run-migrate-alter-admin-role-string.mjs",
     "db:migrate:permissions-role-string": "node scripts/run-migrate-alter-role-permissions-role-string.mjs",
     "db:migrate:categories": "node scripts/run-migrate-categories.mjs",
+    "db:migrate:package-catalog": "node scripts/run-migrate-package-types-themes.mjs",
     "db:migrate:pricing-rules": "node scripts/run-migrate-pricing-rules.mjs",
     "db:migrate:templates": "node scripts/run-migrate-package-templates.mjs",
     "db:migrate:settings": "node scripts/run-migrate-settings.mjs",

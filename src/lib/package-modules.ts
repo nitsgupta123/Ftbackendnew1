@@ -6,7 +6,7 @@ export interface PackageModuleConfig {
   description: string;
   breadcrumbs: { label: string; href?: string }[];
   status?: PackageStatus;
-  endpoint?: "list" | "tbl-list" | "expiring-rates" | "supplier-quotes" | "guide" | "categories" | "pricing-rules" | "templates";
+  endpoint?: "list" | "tbl-list" | "expiring-rates" | "supplier-quotes" | "guide" | "categories" | "types" | "themes" | "pricing-rules" | "templates";
 }
 
 export const PACKAGE_MODULES: Record<string, PackageModuleConfig> = {
@@ -88,6 +88,28 @@ export const PACKAGE_MODULES: Record<string, PackageModuleConfig> = {
       { label: "Package Categories" },
     ],
     endpoint: "categories",
+  },
+  types: {
+    slug: "types",
+    title: "Package Type",
+    description: "Tour types used on Package Basics, such as Leisure, Safari, and Cruise.",
+    breadcrumbs: [
+      { label: "Dashboard", href: "/" },
+      { label: "Package Dashboard", href: "/packages" },
+      { label: "Package Type" },
+    ],
+    endpoint: "types",
+  },
+  themes: {
+    slug: "themes",
+    title: "Package Themes",
+    description: "Merchandising themes for packages, separate from categories and landing pages.",
+    breadcrumbs: [
+      { label: "Dashboard", href: "/" },
+      { label: "Package Dashboard", href: "/packages" },
+      { label: "Package Themes" },
+    ],
+    endpoint: "themes",
   },
   "pricing-rules": {
     slug: "pricing-rules",

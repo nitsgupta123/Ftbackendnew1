@@ -277,12 +277,15 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
   Chad: ["N'Djamena"],
   Chile: ["Santiago", "Valparaíso", "Atacama", "Patagonia", "Easter Island"],
   China: [
+    "Aksu",
     "Altay",
     "Anhui",
     "Beihai",
     "Beijing",
+    "Changbaishan",
     "Changchun",
     "Changsha",
+    "Chengde",
     "Chengdu",
     "Chongqing",
     "Dali",
@@ -290,12 +293,15 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Daocheng",
     "Datong",
     "Dazu",
+    "Detian",
     "Dunhuang",
     "Emeishan",
+    "Enshi",
     "Fenghuang",
     "Fujian",
     "Fuzhou",
     "Gansu",
+    "Golmud",
     "Guangdong",
     "Guangxi",
     "Guangzhou",
@@ -311,6 +317,10 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Henan",
     "Hohhot",
     "Hong Kong",
+    "Hongcun",
+    "Hotan",
+    "Huashan",
+    "Huangguoshu",
     "Huanglong",
     "Huangshan",
     "Hubei",
@@ -322,9 +332,15 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Jiayuguan",
     "Jilin",
     "Jinan",
+    "Jingdezhen",
     "Jiuzhaigou",
+    "Kaifeng",
+    "Kaili",
     "Kanas",
+    "Kangding",
+    "Karamay",
     "Kashgar",
+    "Korla",
     "Kunming",
     "Lanzhou",
     "Leshan",
@@ -333,17 +349,25 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Lijiang",
     "Longsheng",
     "Lugu Lake",
+    "Lushan",
     "Luoyang",
     "Macau",
+    "Mohe",
+    "Mount Everest",
+    "Namtso",
     "Nanjing",
     "Nanning",
     "Ningbo",
     "Ningxia",
     "Nyingchi",
+    "Ordos",
     "Pingyao",
+    "Putuoshan",
+    "Qiandao Lake",
     "Qingdao",
     "Qinghai",
     "Qinghai Lake",
+    "Quanzhou",
     "Qufu",
     "Sanya",
     "Shaanxi",
@@ -351,11 +375,15 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Shanghai",
     "Shangri-La",
     "Shanxi",
+    "Shaolin",
     "Shaoxing",
+    "Shennongjia",
     "Shenyang",
     "Shenzhen",
     "Shigatse",
+    "Shijiazhuang",
     "Sichuan",
+    "Siguniangshan",
     "Suzhou",
     "Taishan",
     "Taiyuan",
@@ -364,28 +392,40 @@ export const CITIES_BY_COUNTRY: Record<string, string[]> = {
     "Tianjin",
     "Tibet",
     "Tiger Leaping Gorge",
+    "Tulou",
     "Turpan",
     "Urumqi",
+    "Weihai",
     "Wudangshan",
     "Wuhan",
     "Wulong",
+    "Wutaishan",
     "Wuxi",
     "Wuyishan",
+    "Wuyuan",
     "Wuzhen",
     "Xi'an",
     "Xiahe",
     "Xiamen",
+    "Xidi",
+    "Xijiang",
     "Xining",
     "Xinjiang",
     "Xishuangbanna",
+    "Xitang",
+    "Xuexiang",
     "Yading",
     "Yangshuo",
     "Yangzhou",
+    "Yichang",
     "Yinchuan",
+    "Yining",
     "Yuanyang",
     "Yunnan",
+    "Yushu",
     "Zhangjiajie",
     "Zhangye",
+    "Zhaoxing",
     "Zhejiang",
     "Zhengzhou",
     "Zhouzhuang",
@@ -676,12 +716,55 @@ export function joinDestinationList(values: string[]): string {
   return values.filter(Boolean).join(", ");
 }
 
+/** Provincial-level names. These stay in the city list and are grouped first. */
+const REGIONS_BY_COUNTRY: Record<string, readonly string[]> = {
+  China: [
+    "Anhui",
+    "Beijing",
+    "Chongqing",
+    "Fujian",
+    "Gansu",
+    "Guangdong",
+    "Guangxi",
+    "Guizhou",
+    "Hainan",
+    "Hebei",
+    "Heilongjiang",
+    "Henan",
+    "Hong Kong",
+    "Hubei",
+    "Hunan",
+    "Inner Mongolia",
+    "Jiangsu",
+    "Jiangxi",
+    "Jilin",
+    "Liaoning",
+    "Macau",
+    "Ningxia",
+    "Qinghai",
+    "Shaanxi",
+    "Shandong",
+    "Shanghai",
+    "Shanxi",
+    "Sichuan",
+    "Tianjin",
+    "Tibet",
+    "Xinjiang",
+    "Yunnan",
+    "Zhejiang",
+  ],
+};
+
 /** City/region options for the currently selected countries. */
 export function getCityOptionsForCountries(countries: string[]): {
   value: string;
   label: string;
+  group: "Regions" | "Cities";
 }[] {
-  const options: { value: string; label: string }[] = [];
+  const regionNames = new Set(
+    countries.flatMap((country) => REGIONS_BY_COUNTRY[country] ?? [])
+  );
+  const options: { value: string; label: string; group: "Regions" | "Cities" }[] = [];
   const seen = new Set<string>();
 
   for (const country of countries) {
@@ -692,10 +775,14 @@ export function getCityOptionsForCountries(countries: string[]): {
       options.push({
         value: city,
         label: countries.length > 1 ? `${city} (${country})` : city,
+        group: regionNames.has(city) ? "Regions" : "Cities",
       });
     }
   }
 
-  options.sort((a, b) => a.label.localeCompare(b.label));
+  options.sort((a, b) => {
+    if (a.group !== b.group) return a.group === "Regions" ? -1 : 1;
+    return a.label.localeCompare(b.label);
+  });
   return options;
 }

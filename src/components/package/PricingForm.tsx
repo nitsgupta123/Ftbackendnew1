@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "../ui/icons";
 import type {
   BookingRange,
@@ -29,6 +29,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface PricingFormProps extends StepFormBaseProps {
   onNext: (data: PricingData) => void;
@@ -84,14 +89,34 @@ function uid(prefix = "id") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function openDatePicker(input: HTMLInputElement | null | undefined) {
-  if (!input) return;
-  input.focus();
-  try {
-    input.showPicker?.();
-  } catch {
-    // Some browsers only allow showPicker during a direct user gesture.
-  }
+type DatePickerHandle = { open: () => void };
+
+function openDatePicker(picker: DatePickerHandle | null | undefined) {
+  picker?.open();
+}
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function yearChoices(selected?: number) {
+  const current = new Date().getFullYear();
+  const start = Math.min(current - 5, selected ?? current);
+  const end = Math.max(current + 6, selected ?? current);
+  const years: number[] = [];
+  for (let year = start; year <= end; year += 1) years.push(year);
+  return years;
 }
 
 function DateInput({
@@ -106,25 +131,174 @@ function DateInput({
   onChange: (value: string) => void;
   onFocus?: () => void;
   disabled?: boolean;
-  inputRef?: (el: HTMLInputElement | null) => void;
+  inputRef?: (el: DatePickerHandle | null) => void;
   className?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const selectedYear = parsed ? Number(parsed[1]) : undefined;
+  const selectedMonth = parsed ? Number(parsed[2]) : undefined;
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(selectedYear ?? today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedMonth ?? today.getMonth() + 1);
+
+  useEffect(() => {
+    inputRef?.({ open: () => setOpen(true) });
+    return () => inputRef?.(null);
+    // The parent ref callback only stores this handle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const cells = monthCalendarCells(viewYear, viewMonth);
+  const viewMonthValue = String(viewMonth).padStart(2, "0");
+
   return (
-    <div className="relative">
-      <Input
-        ref={inputRef}
-        type="date"
-        disabled={disabled}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+    <Popover
+      open={open && !disabled}
+      onOpenChange={(next) => {
+        if (disabled) return;
+        if (next) {
+          const current = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+          const now = new Date();
+          setViewYear(current ? Number(current[1]) : now.getFullYear());
+          setViewMonth(current ? Number(current[2]) : now.getMonth() + 1);
+        }
+        setOpen(next);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          onFocus={onFocus}
+          className={`${className ?? dateInputClass} relative text-left disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <span className={value ? "text-gray-900" : "text-gray-400"}>
+            {value ? formatIsoDateLabel(value) : "dd-mm-yyyy"}
+          </span>
+          <Icon
+            name="Calendar"
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[300px] p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <NativeSelect
+            className={tableInputClass}
+            value={viewMonthValue}
+            onChange={(event) => setViewMonth(Number(event.target.value))}
+          >
+            {MONTH_NAMES.map((name, index) => (
+              <option key={name} value={String(index + 1).padStart(2, "0")}>
+                {name}
+              </option>
+            ))}
+          </NativeSelect>
+          <NativeSelect
+            className={tableInputClass}
+            value={String(viewYear)}
+            onChange={(event) => setViewYear(Number(event.target.value))}
+          >
+            {yearChoices(viewYear).map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-gray-400">
+          {WEEKDAY_LABELS.map((label) => (
+            <span key={label} className="h-7 leading-7">
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((cell, index) =>
+            cell ? (
+              <button
+                key={cell}
+                type="button"
+                onClick={() => {
+                  onChange(cell);
+                  setOpen(false);
+                }}
+                className={`h-8 rounded-full text-sm transition-colors ${
+                  value === cell
+                    ? "bg-[#B48A2C] text-white"
+                    : "text-[#1F2A44] hover:bg-[#FFF9EB]"
+                }`}
+              >
+                {Number(cell.slice(-2))}
+              </button>
+            ) : (
+              <span key={`blank-${index}`} className="h-8" />
+            ),
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MonthYearInput({
+  value,
+  onChange,
+  onFocus,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onFocus?: () => void;
+}) {
+  const parsed = monthDateBounds(value);
+  const [month, setMonth] = useState(
+    parsed ? String(parsed.month).padStart(2, "0") : "",
+  );
+  const [year, setYear] = useState(parsed ? String(parsed.year) : "");
+
+  useEffect(() => {
+    const next = monthDateBounds(value);
+    if (!next) return;
+    setMonth(String(next.month).padStart(2, "0"));
+    setYear(String(next.year));
+  }, [value]);
+
+  const commit = (nextMonth: string, nextYear: string) => {
+    setMonth(nextMonth);
+    setYear(nextYear);
+    onChange(nextMonth && nextYear ? `${nextYear}-${nextMonth}` : "");
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <NativeSelect
+        className={inputClass}
+        value={month}
         onFocus={onFocus}
-        className={className ?? dateInputClass}
-      />
-      <Icon
-        name="Calendar"
-        size={14}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-      />
+        onChange={(event) => commit(event.target.value, year)}
+      >
+        <option value="">Month</option>
+        {MONTH_NAMES.map((name, index) => (
+          <option key={name} value={String(index + 1).padStart(2, "0")}>
+            {name}
+          </option>
+        ))}
+      </NativeSelect>
+      <NativeSelect
+        className={inputClass}
+        value={year}
+        onFocus={onFocus}
+        onChange={(event) => commit(month, event.target.value)}
+      >
+        <option value="">Year</option>
+        {yearChoices(parsed?.year).map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </NativeSelect>
     </div>
   );
 }
@@ -165,11 +339,21 @@ function ensureChildRows(rows: PricingChildRow[] | undefined): PricingChildRow[]
   });
 }
 
+function ensurePromotion(row: PricingPromotion): PricingPromotion {
+  return {
+    ...row,
+    bookingFrom: row.bookingFrom || row.validFrom || "",
+    bookingTo: row.bookingTo || row.validTo || "",
+    travelFrom: row.travelFrom || "",
+    travelTo: row.travelTo || "",
+  };
+}
+
 function ensurePricing(pricing: PricingDetailsBlock | undefined): PricingDetailsBlock {
   return {
     adultTiers: pricing?.adultTiers?.length ? pricing.adultTiers : createAdultTiers(),
     childRows: ensureChildRows(pricing?.childRows),
-    promotions: pricing?.promotions ?? [],
+    promotions: (pricing?.promotions ?? []).map(ensurePromotion),
   };
 }
 
@@ -251,6 +435,109 @@ function formatDisplayDate(value: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+function monthDateBounds(monthValue: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthValue);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || month < 1 || month > 12) return null;
+  const dayCount = new Date(year, month, 0).getDate();
+  const min = `${match[1]}-${match[2]}-01`;
+  const max = `${match[1]}-${match[2]}-${String(dayCount).padStart(2, "0")}`;
+  return { year, month, dayCount, min, max };
+}
+
+function dateInMonth(date: string, monthValue: string) {
+  const bounds = monthDateBounds(monthValue);
+  if (!bounds || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  return date >= bounds.min && date <= bounds.max;
+}
+
+function monthCalendarCells(year: number, month: number) {
+  const dayCount = new Date(year, month, 0).getDate();
+  const firstWeekday = new Date(year, month - 1, 1).getDay();
+  const leadingBlanks = (firstWeekday + 6) % 7;
+  const cells: Array<string | null> = Array.from(
+    { length: leadingBlanks },
+    () => null,
+  );
+  for (let day = 1; day <= dayCount; day += 1) {
+    cells.push(
+      `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    );
+  }
+  return cells;
+}
+
+function formatIsoDateLabel(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function scheduledDays(monthValue: string) {
+  const bounds = monthDateBounds(monthValue);
+  if (!bounds) return [];
+  return monthCalendarCells(bounds.year, bounds.month).filter(
+    (cell): cell is string => Boolean(cell),
+  );
+}
+
+function DepartureDateSelect({
+  value,
+  month,
+  onChange,
+  onFocus,
+  inputRef,
+}: {
+  value: string;
+  month: string;
+  onChange: (value: string) => void;
+  onFocus?: () => void;
+  inputRef?: (el: HTMLSelectElement | null) => void;
+}) {
+  const bounds = monthDateBounds(month);
+  const days = scheduledDays(month);
+  const label = bounds ? formatMonthLabel(month) : "";
+
+  return (
+    <NativeSelect
+      ref={inputRef}
+      className={tableInputClass}
+      disabled={!bounds}
+      value={days.includes(value) ? value : ""}
+      onFocus={onFocus}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (next && !dateInMonth(next, month)) return;
+        onChange(next);
+      }}
+      title={
+        bounds
+          ? `Scheduled departure dates in ${label}`
+          : "Select a departure month first"
+      }
+    >
+      <option value="">
+        {bounds ? `Select a day in ${label}` : "Select month first"}
+      </option>
+      {days.map((iso) => (
+        <option key={iso} value={iso}>
+          {formatIsoDateLabel(iso)}
+        </option>
+      ))}
+    </NativeSelect>
+  );
 }
 
 function hydrateCategories(initial?: PricingData | null): HotelCategoryPricing[] {
@@ -461,8 +748,10 @@ function PromotionsSection({
       {
         id: uid("promo"),
         title: "",
-        validFrom: "",
-        validTo: "",
+        bookingFrom: "",
+        bookingTo: "",
+        travelFrom: "",
+        travelTo: "",
         discountType: "percentage",
         value: "",
         active: true,
@@ -484,28 +773,20 @@ function PromotionsSection({
 
   return (
     <div>
-      <div className="overflow-x-auto -mx-2 sm:mx-0">
-        <div className="min-w-[900px] px-2 sm:px-0">
-          <div className="grid grid-cols-[1.4fr_1fr_1fr_1.1fr_0.9fr_90px_100px] gap-3 text-xs font-semibold text-[#1F2A44] uppercase tracking-wide pb-3 border-b border-gray-100">
-            <span>Promotion Title</span>
-            <span>Valid From</span>
-            <span>Valid To</span>
-            <span>Discount Type</span>
-            <span>Value</span>
-            <span>Status</span>
-            <span>Actions</span>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {rows.length === 0 && (
-              <p className="text-sm text-gray-400 py-4">
-                No promotions yet. Add a promotional price when needed.
-              </p>
-            )}
-            {rows.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-[1.4fr_1fr_1fr_1.1fr_0.9fr_90px_100px] gap-3 py-2.5 items-center"
-              >
+      {rows.length === 0 && (
+        <p className="text-sm text-gray-400 py-4">
+          No promotions yet. Add a promotional price when needed.
+        </p>
+      )}
+      <div className="space-y-4">
+        {rows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-[12px] border border-[#E5E7EB] bg-white p-4 space-y-4"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.1fr_0.8fr_auto_auto] gap-3 items-end">
+              <div>
+                <Label className={labelClass}>Promotion title</Label>
                 <Input
                   type="text"
                   className={tableInputClass}
@@ -513,14 +794,9 @@ function PromotionsSection({
                   onChange={(e) => update(row.id, "title", e.target.value)}
                   placeholder="Promotion title"
                 />
-                <DateInput
-                  value={row.validFrom}
-                  onChange={(value) => update(row.id, "validFrom", value)}
-                />
-                <DateInput
-                  value={row.validTo}
-                  onChange={(value) => update(row.id, "validTo", value)}
-                />
+              </div>
+              <div>
+                <Label className={labelClass}>Discount type</Label>
                 <NativeSelect
                   className={tableInputClass}
                   value={row.discountType}
@@ -531,6 +807,9 @@ function PromotionsSection({
                   <option value="percentage">Percentage</option>
                   <option value="fixed">Fixed Amount</option>
                 </NativeSelect>
+              </div>
+              <div>
+                <Label className={labelClass}>Value</Label>
                 <Input
                   type="text"
                   className={tableInputClass}
@@ -538,37 +817,88 @@ function PromotionsSection({
                   onChange={(e) => update(row.id, "value", e.target.value)}
                   placeholder={row.discountType === "percentage" ? "10%" : "100"}
                 />
-                <span
-                  className={`inline-flex justify-center items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                    row.active
-                      ? "bg-green-100 text-green-700 border border-green-200"
-                      : "bg-gray-100 text-gray-500 border border-gray-200"
-                  }`}
+              </div>
+              <span
+                className={`inline-flex h-10 items-center justify-center px-2 py-1 text-xs font-semibold rounded-full ${
+                  row.active
+                    ? "bg-green-100 text-green-700 border border-green-200"
+                    : "bg-gray-100 text-gray-500 border border-gray-200"
+                }`}
+              >
+                {row.active ? "Active" : "Inactive"}
+              </span>
+              <div className="flex items-center gap-1.5 pb-1">
+                <button
+                  type="button"
+                  className={iconBtnClass}
+                  title={row.active ? "Deactivate" : "Activate"}
+                  onClick={() => update(row.id, "active", !row.active)}
                 >
-                  {row.active ? "Active" : "Inactive"}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    className={iconBtnClass}
-                    title={row.active ? "Deactivate" : "Activate"}
-                    onClick={() => update(row.id, "active", !row.active)}
-                  >
-                    <Icon name="Power" size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={iconBtnClass}
-                    title="Delete"
-                    onClick={() => remove(row.id)}
-                  >
-                    <Icon name="Trash2" size={14} />
-                  </button>
+                  <Icon name="Power" size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={iconBtnClass}
+                  title="Delete"
+                  onClick={() => remove(row.id)}
+                >
+                  <Icon name="Trash2" size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-[10px] border border-[#E5E7EB] bg-[#F8F9FB] p-3">
+                <p className="text-sm font-semibold text-[#1F2A44]">Booking window</p>
+                <p className="text-xs text-gray-400 mt-0.5 mb-3">
+                  Dates the customer must book for this offer to apply.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className={labelClass}>Valid From</Label>
+                    <DateInput
+                      className={inputClass}
+                      value={row.bookingFrom}
+                      onChange={(value) => update(row.id, "bookingFrom", value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className={labelClass}>Valid To</Label>
+                    <DateInput
+                      className={inputClass}
+                      value={row.bookingTo}
+                      onChange={(value) => update(row.id, "bookingTo", value)}
+                    />
+                  </div>
                 </div>
               </div>
-            ))}
+              <div className="rounded-[10px] border border-[#E5E7EB] bg-[#F8F9FB] p-3">
+                <p className="text-sm font-semibold text-[#1F2A44]">Travel window</p>
+                <p className="text-xs text-gray-400 mt-0.5 mb-3">
+                  Travel dates this offer applies to.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className={labelClass}>From date</Label>
+                    <DateInput
+                      className={inputClass}
+                      value={row.travelFrom}
+                      onChange={(value) => update(row.id, "travelFrom", value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className={labelClass}>To date</Label>
+                    <DateInput
+                      className={inputClass}
+                      value={row.travelTo}
+                      onChange={(value) => update(row.id, "travelTo", value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
       <Button type="button" onClick={add} className={addButtonGoldClass}>
         <Icon name="Plus" size={14} />
@@ -737,7 +1067,7 @@ function BookingRangesEditor({
   ranges: BookingRange[];
   onChange: (ranges: BookingRange[]) => void;
 }) {
-  const rangeFromDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const rangeFromDateRefs = useRef<Record<string, DatePickerHandle | null>>({});
 
   const updateRange = (id: string, patch: Partial<BookingRange>) => {
     onChange(ranges.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -894,7 +1224,7 @@ export default function PricingForm({
   const [activeCategory, setActiveCategory] = useState<HotelCategoryKey>("3star");
   const [activeMonthId, setActiveMonthId] = useState<string | null>(null);
   const [activeDepartureId, setActiveDepartureId] = useState<string | null>(null);
-  const departureDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const departureDateRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
   const category = hotelCategories.find((item) => item.category === activeCategory)!;
 
@@ -909,8 +1239,15 @@ export default function PricingForm({
     null;
 
   const editDepartureDate = (departureId: string) => {
+    if (!monthDateBounds(selectedMonth?.month ?? "")) return;
     setActiveDepartureId(departureId);
-    openDatePicker(departureDateRefs.current[departureId]);
+    const select = departureDateRefs.current[departureId];
+    select?.focus();
+    try {
+      select?.showPicker?.();
+    } catch {
+      // Some browsers only open the list from a click on the select.
+    }
   };
 
   const updateCategory = (
@@ -1040,7 +1377,7 @@ export default function PricingForm({
         {pricingType === "fixed_departure" ? (
           <div className="space-y-6 mt-6">
             <p className="text-sm text-gray-500">
-              Departure dates are the dates a customer can book. Adult, child, and infant prices stay on the seasons above.
+              Add the scheduled departure dates for this package. The customer can only book one of these dates. Adult, child, and infant prices stay on the seasons above.
             </p>
             <div>
               <h4 className="text-sm font-semibold text-[#1F2A44] mb-3">
@@ -1061,24 +1398,33 @@ export default function PricingForm({
                       >
                         <div className="flex-1">
                           <Label className={labelClass}>Month</Label>
-                          <Input
-                            type="month"
-                            className={inputClass}
+                          <MonthYearInput
                             value={month.month}
                             onFocus={() => {
                               setActiveMonthId(month.id);
                               setActiveDepartureId(null);
                             }}
-                            onChange={(e) =>
+                            onChange={(nextMonth) => {
+                              setActiveMonthId(month.id);
                               updateCategory(activeCategory, (current) => ({
                                 ...current,
                                 departureMonths: current.departureMonths.map((item) =>
                                   item.id === month.id
-                                    ? { ...item, month: e.target.value }
+                                    ? {
+                                        ...item,
+                                        month: nextMonth,
+                                        dates: item.dates.map((date) =>
+                                          date.date &&
+                                          nextMonth &&
+                                          !dateInMonth(date.date, nextMonth)
+                                            ? { ...date, date: "" }
+                                            : date,
+                                        ),
+                                      }
                                     : item,
                                 ),
-                              }))
-                            }
+                              }));
+                            }}
                           />
                         </div>
                         <div className="flex items-center gap-2 sm:pt-6">
@@ -1144,9 +1490,14 @@ export default function PricingForm({
             {selectedMonth ? (
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-sm font-semibold text-[#1F2A44] mb-3">
+                  <h4 className="text-sm font-semibold text-[#1F2A44] mb-1">
                     Departure dates · {formatMonthLabel(selectedMonth.month)}
                   </h4>
+                  <p className="text-xs text-gray-400 mb-3">
+                    {monthDateBounds(selectedMonth.month)
+                      ? `Only days in ${formatMonthLabel(selectedMonth.month)} can be scheduled. The customer picks from this list.`
+                      : "Choose the month and year above, then add the scheduled departure dates."}
+                  </p>
                   <div className={nestedCardClass}>
                     <div className="overflow-x-auto -mx-2 sm:mx-0">
                       <div className="min-w-[640px] px-2 sm:px-0">
@@ -1165,13 +1516,15 @@ export default function PricingForm({
                                   selected ? "bg-[#FFF9EB]/80" : ""
                                 }`}
                               >
-                                <DateInput
+                                <DepartureDateSelect
                                   value={dep.date}
+                                  month={selectedMonth.month}
                                   inputRef={(el) => {
                                     departureDateRefs.current[dep.id] = el;
                                   }}
                                   onFocus={() => setActiveDepartureId(dep.id)}
-                                  onChange={(value) =>
+                                  onChange={(value) => {
+                                    if (!dateInMonth(value, selectedMonth.month)) return;
                                     updateCategory(activeCategory, (current) => ({
                                       ...current,
                                       departureMonths: current.departureMonths.map(
@@ -1190,8 +1543,8 @@ export default function PricingForm({
                                               }
                                             : month,
                                       ),
-                                    }))
-                                  }
+                                    }));
+                                  }}
                                 />
                                 <NativeSelect
                                   className={tableInputClass}
@@ -1230,7 +1583,12 @@ export default function PricingForm({
                                   <button
                                     type="button"
                                     className={iconBtnClass}
-                                    title="Edit date"
+                                    title={
+                                      monthDateBounds(selectedMonth.month)
+                                        ? "Edit date"
+                                        : "Select a departure month first"
+                                    }
+                                    disabled={!monthDateBounds(selectedMonth.month)}
                                     onClick={() => editDepartureDate(dep.id)}
                                   >
                                     <Icon name="Pencil" size={14} />

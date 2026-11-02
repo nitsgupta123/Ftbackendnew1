@@ -7,12 +7,12 @@ import { Icon } from "../ui/icons";
 import { packageBasicsSchema, type PackageBasicsValues } from "@/lib/validation";
 import { saveButtonLabel, stepPreviousButtonClass, stepSaveButtonClass, type StepFormBaseProps } from "./step-form-props";
 import { listActiveCategories } from "@/lib/category-api";
+import { listActivePackageCatalog } from "@/lib/package-catalog-api";
 import { listWebsiteLandingPages } from "@/lib/page-api";
 import { slugify } from "@/lib/slug";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import BlogRichTextEditor from "@/components/blogs/BlogRichTextEditor";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
@@ -30,6 +30,7 @@ import {
 import {
   PACKAGE_COUNTRIES,
   getCityOptionsForCountries,
+  joinDestinationList,
   splitDestinationList,
 } from "@/lib/package-destinations";
 
@@ -86,6 +87,19 @@ function SelectedTag({
   );
 }
 
+type SelectOption = { value: string; label: string; group?: string };
+
+function groupSelectOptions(options: SelectOption[]) {
+  const groups: { name: string; items: SelectOption[] }[] = [];
+  for (const option of options) {
+    const name = option.group ?? "";
+    const last = groups[groups.length - 1];
+    if (!last || last.name !== name) groups.push({ name, items: [option] });
+    else last.items.push(option);
+  }
+  return groups;
+}
+
 function SearchableMultiSelect({
   label,
   options,
@@ -94,18 +108,24 @@ function SearchableMultiSelect({
   helperText,
   loading,
   placeholder = "Search and select…",
+  searchPlaceholder = "Search…",
   emptyMessage = "No options found.",
   required,
+  disabled,
+  allowCustom,
 }: {
   label: string;
-  options: { value: string; label: string }[];
+  options: SelectOption[];
   selectedValues: string[];
   onChange: (values: string[]) => void;
   helperText?: string;
   loading?: boolean;
   placeholder?: string;
+  searchPlaceholder?: string;
   emptyMessage?: string;
   required?: boolean;
+  disabled?: boolean;
+  allowCustom?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -116,6 +136,20 @@ function SearchableMultiSelect({
     if (!q) return options;
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, search]);
+
+  const grouped = useMemo(() => groupSelectOptions(filtered), [filtered]);
+  const showGroupHeaders = grouped.filter((group) => group.name).length > 1;
+
+  const customValue = search.trim();
+  const canAddCustom =
+    Boolean(allowCustom) &&
+    customValue.length > 0 &&
+    !options.some(
+      (option) =>
+        option.value.toLowerCase() === customValue.toLowerCase() ||
+        option.label.toLowerCase() === customValue.toLowerCase()
+    ) &&
+    !selectedValues.some((value) => value.toLowerCase() === customValue.toLowerCase());
 
   const selectedLabels = useMemo(() => {
     const map = new Map(options.map((o) => [o.value, o.label]));
@@ -162,6 +196,7 @@ function SearchableMultiSelect({
         <Popover
           open={open}
           onOpenChange={(next) => {
+            if (disabled) return;
             setOpen(next);
             if (!next) setSearch("");
           }}
@@ -169,7 +204,8 @@ function SearchableMultiSelect({
           <PopoverTrigger asChild>
             <Button
               type="button"
-              className="w-full h-[42px] px-4 text-sm border border-[#D1D5DB] rounded-[6px] bg-white text-left font-normal text-gray-500 hover:bg-[#F9FAFB] justify-between"
+              disabled={disabled}
+              className="w-full h-[42px] px-4 text-sm border border-[#D1D5DB] rounded-[6px] bg-white text-left font-normal text-gray-500 hover:bg-[#F9FAFB] justify-between disabled:opacity-60"
             >
               <span className="truncate">
                 {selectedValues.length > 0
@@ -181,13 +217,16 @@ function SearchableMultiSelect({
           </PopoverTrigger>
           <PopoverContent
             align="start"
-            className="w-[var(--radix-popover-trigger-width)] p-2 bg-white"
+            className="flex w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden bg-white p-2"
+            style={{
+              maxHeight: "min(24rem, var(--radix-popover-content-available-height, 24rem))",
+            }}
             onOpenAutoFocus={(e) => {
               e.preventDefault();
               searchRef.current?.focus();
             }}
           >
-            <div className="relative mb-2">
+            <div className="relative mb-2 shrink-0">
               <Icon
                 name="Search"
                 size={14}
@@ -198,39 +237,63 @@ function SearchableMultiSelect({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
+                placeholder={searchPlaceholder}
                 className="h-9 pl-8 pr-3 text-sm border-[#D1D5DB] rounded-[6px]"
               />
             </div>
-            <div className="max-h-52 overflow-y-auto">
-              {filtered.length === 0 ? (
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+              onWheel={(event) => event.stopPropagation()}
+            >
+              {filtered.length === 0 && !canAddCustom ? (
                 <p className="px-2 py-3 text-xs text-gray-400">{emptyMessage}</p>
               ) : (
-                filtered.map((option) => {
-                  const isSelected = selectedValues.includes(option.value);
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => toggle(option.value)}
-                      className={`
-                        w-full flex items-center gap-2 px-2.5 py-2 text-sm text-left rounded-[6px] transition-colors
-                        ${isSelected ? "bg-[#F1F5F9] text-[#1F2A44] font-medium" : "text-[#334155] hover:bg-[#F8FAFC]"}
-                      `}
-                    >
-                      <span
-                        className={`
-                          flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]
-                          ${isSelected ? "border-[#1F2A44] bg-[#1F2A44] text-white" : "border-[#CBD5E1] bg-white"}
-                        `}
-                      >
-                        {isSelected ? "✓" : null}
-                      </span>
-                      <span className="truncate">{option.label}</span>
-                    </button>
-                  );
-                })
+                grouped.map((group) => (
+                  <div key={group.name || "options"}>
+                    {showGroupHeaders && group.name ? (
+                      <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        {group.name}
+                      </p>
+                    ) : null}
+                    {group.items.map((option) => {
+                      const isSelected = selectedValues.includes(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => toggle(option.value)}
+                          className={`
+                            w-full flex items-center gap-2 px-2.5 py-2 text-sm text-left rounded-[6px] transition-colors
+                            ${isSelected ? "bg-[#F1F5F9] text-[#1F2A44] font-medium" : "text-[#334155] hover:bg-[#F8FAFC]"}
+                          `}
+                        >
+                          <span
+                            className={`
+                              flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]
+                              ${isSelected ? "border-[#1F2A44] bg-[#1F2A44] text-white" : "border-[#CBD5E1] bg-white"}
+                            `}
+                          >
+                            {isSelected ? "✓" : null}
+                          </span>
+                          <span className="truncate">{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
               )}
+              {canAddCustom ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange([...selectedValues, customValue]);
+                    setSearch("");
+                  }}
+                  className="w-full px-2.5 py-2 text-left text-sm text-[#1F2A44] hover:bg-[#F8FAFC] rounded-[6px]"
+                >
+                  Add “{customValue}”
+                </button>
+              ) : null}
             </div>
           </PopoverContent>
         </Popover>
@@ -238,116 +301,6 @@ function SearchableMultiSelect({
 
       {helperText && <p className="text-xs text-gray-400 mt-2.5">{helperText}</p>}
     </div>
-  );
-}
-
-function SearchableSelect({
-  id,
-  options,
-  value,
-  onChange,
-  disabled,
-  placeholder,
-  searchPlaceholder = "Search…",
-  emptyMessage = "No matches.",
-}: {
-  id?: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  placeholder: string;
-  searchPlaceholder?: string;
-  emptyMessage?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((option) => option.label.toLowerCase().includes(q));
-  }, [options, search]);
-
-  const selectedLabel =
-    options.find((option) => option.value === value)?.label ?? value;
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        if (disabled) return;
-        setOpen(next);
-        if (!next) setSearch("");
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          className="w-full h-[42px] px-4 text-sm border border-[#D1D5DB] rounded-[6px] bg-white text-left font-normal hover:bg-[#F9FAFB] justify-between shadow-none"
-        >
-          <span className={`truncate ${value ? "text-gray-900" : "text-gray-500"}`}>
-            {value ? selectedLabel : placeholder}
-          </span>
-          <Icon name="ChevronDown" size={16} className="text-gray-400 shrink-0" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[var(--radix-popover-trigger-width)] p-2 bg-white"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          searchRef.current?.focus();
-        }}
-      >
-        <div className="relative mb-2">
-          <Icon
-            name="Search"
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
-          <Input
-            ref={searchRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="h-9 pl-8 pr-3 text-sm border-[#D1D5DB] rounded-[6px]"
-          />
-        </div>
-        <div className="max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <p className="px-2 py-3 text-xs text-gray-400">{emptyMessage}</p>
-          ) : (
-            filtered.map((option) => {
-              const isSelected = value === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  className={`w-full px-2.5 py-2 text-sm text-left rounded-[6px] transition-colors ${
-                    isSelected
-                      ? "bg-[#F1F5F9] text-[#1F2A44] font-medium"
-                      : "text-[#334155] hover:bg-[#F8FAFC]"
-                  }`}
-                >
-                  <span className="truncate">{option.label}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -361,6 +314,10 @@ export default function PackageBasicsForm({
     { id: number; name: string }[]
   >([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [typeOptions, setTypeOptions] = useState<string[]>([]);
+  const [typesLoading, setTypesLoading] = useState(true);
+  const [themeOptions, setThemeOptions] = useState<string[]>([]);
+  const [themesLoading, setThemesLoading] = useState(true);
   const [landingOptions, setLandingOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -392,6 +349,7 @@ export default function PackageBasicsForm({
       nights: "",
       categories: [],
       categoryIds: [],
+      packageThemes: [],
       landingPages: [],
       isSeasonalPackage: false,
       importantInfo: "",
@@ -404,11 +362,7 @@ export default function PackageBasicsForm({
     if (!raw.includes(",")) return raw;
     return splitDestinationList(raw)[0] ?? "";
   })();
-  const selectedCity = (() => {
-    const raw = watch("citiesOrRegions") ?? "";
-    if (!raw.includes(",")) return raw;
-    return splitDestinationList(raw)[0] ?? "";
-  })();
+  const selectedCities = splitDestinationList(watch("citiesOrRegions"));
 
   useEffect(() => {
     if (initialData) {
@@ -444,6 +398,38 @@ export default function PackageBasicsForm({
 
   useEffect(() => {
     let cancelled = false;
+    async function loadCatalogs() {
+      setTypesLoading(true);
+      setThemesLoading(true);
+      try {
+        const [types, themes] = await Promise.all([
+          listActivePackageCatalog("type"),
+          listActivePackageCatalog("theme"),
+        ]);
+        if (!cancelled) {
+          setTypeOptions(types.items.map((item) => item.name));
+          setThemeOptions(themes.items.map((item) => item.name));
+        }
+      } catch {
+        if (!cancelled) {
+          setTypeOptions([]);
+          setThemeOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setTypesLoading(false);
+          setThemesLoading(false);
+        }
+      }
+    }
+    loadCatalogs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     async function loadLandingPages() {
       setLandingPagesLoading(true);
       try {
@@ -467,6 +453,23 @@ export default function PackageBasicsForm({
       cancelled = true;
     };
   }, []);
+
+  const selectedTourType = watch("tourType");
+  const selectedThemes = watch("packageThemes") ?? [];
+  const packageTypeOptions = useMemo(() => {
+    const names = [...typeOptions];
+    if (selectedTourType && !names.includes(selectedTourType)) {
+      names.unshift(selectedTourType);
+    }
+    return names;
+  }, [typeOptions, selectedTourType]);
+  const themeSelectOptions = useMemo(() => {
+    const names = [...themeOptions];
+    for (const theme of selectedThemes) {
+      if (theme && !names.includes(theme)) names.push(theme);
+    }
+    return names.map((name) => ({ value: name, label: name }));
+  }, [themeOptions, selectedThemes]);
 
   const categorySelectOptions = useMemo(
     () =>
@@ -495,6 +498,7 @@ export default function PackageBasicsForm({
     onNext({
       ...data,
       importantInfo: initialData?.importantInfo ?? data.importantInfo ?? "",
+      frontendNotes: initialData?.frontendNotes ?? data.frontendNotes ?? "",
     });
   };
 
@@ -502,8 +506,6 @@ export default function PackageBasicsForm({
     "w-full h-[42px] px-4 text-sm border border-[#D1D5DB] rounded-[6px] bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B48A2C]/20 focus:border-[#B48A2C] transition-colors";
   const selectClass = `${inputClass} appearance-none cursor-pointer`;
   const labelClass = "block text-sm font-semibold text-[#334155] mb-1.5";
-  const textareaClass =
-    "w-full px-4 py-3 text-sm border border-[#D1D5DB] rounded-[6px] bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B48A2C]/20 focus:border-[#B48A2C] transition-colors resize-y";
   const requiredStar = <span className="text-red-400 ml-0.5">*</span>;
   const errorClass = "text-xs text-red-500 mt-1";
 
@@ -699,33 +701,29 @@ export default function PackageBasicsForm({
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="citiesOrRegions" className={labelClass}>
-                Cities or regions
-              </Label>
-              <SearchableSelect
-                id="citiesOrRegions"
-                options={cityOptions}
-                value={selectedCity}
-                disabled={!selectedCountry}
-                placeholder={
-                  selectedCountry ? "Select city or region" : "Select a country first"
-                }
-                searchPlaceholder="Search cities or regions…"
-                emptyMessage="No matching city or region."
-                onChange={(city) =>
-                  setValue("citiesOrRegions", city, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-              />
-              <p className="text-xs text-gray-400 mt-2">
-                {selectedCountry
-                  ? `Search or scroll the full list for ${selectedCountry}.`
-                  : "Pick a country above — this list fills automatically."}
-              </p>
-            </div>
+            <SearchableMultiSelect
+              label="Cities or regions"
+              options={cityOptions}
+              selectedValues={selectedCities}
+              disabled={!selectedCountry}
+              allowCustom
+              placeholder={
+                selectedCountry ? "Select cities or regions" : "Select a country first"
+              }
+              searchPlaceholder="Search cities or regions…"
+              emptyMessage="No matching city or region."
+              helperText={
+                selectedCountry
+                  ? `${cityOptions.length} places for ${selectedCountry}. Regions are listed first, then cities. Select every place this package covers, or type a name to add it.`
+                  : "Pick a country above — this list fills automatically."
+              }
+              onChange={(cities) =>
+                setValue("citiesOrRegions", joinDestinationList(cities), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
           </div>
 
           {/* Starting point, Ending point */}
@@ -819,6 +817,64 @@ export default function PackageBasicsForm({
             />
           </div>
 
+          <div className="mb-6">
+            <Controller
+              control={control}
+              name="packageThemes"
+              render={({ field }) => (
+                <SearchableMultiSelect
+                  label="Package themes"
+                  options={themeSelectOptions}
+                  selectedValues={field.value || []}
+                  loading={themesLoading}
+                  placeholder="Search themes…"
+                  emptyMessage={
+                    themeOptions.length === 0
+                      ? "No active themes. Add themes in Package Themes first."
+                      : "No matching themes."
+                  }
+                  onChange={field.onChange}
+                  helperText="Audience and style tags. Manage the list under Packages → Settings → Package Themes. Separate from categories and landing pages."
+                />
+              )}
+            />
+          </div>
+
+          {/* Package type — below themes */}
+          <div className="mb-6 max-w-md">
+            <Label htmlFor="tourType" className={labelClass}>
+              Package type {requiredStar}
+            </Label>
+            <div className="relative">
+              <NativeSelect
+                id="tourType"
+                className={selectClass}
+                disabled={typesLoading}
+                {...register("tourType")}
+              >
+                <option value="">
+                  {typesLoading ? "Loading types…" : "Select type"}
+                </option>
+                {packageTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </NativeSelect>
+              <Icon
+                name="ChevronDown"
+                size={16}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              />
+            </div>
+            {errors.tourType && (
+              <p className={errorClass}>{errors.tourType.message}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-2">
+              Managed under Packages → Settings → Package Type.
+            </p>
+          </div>
+
           {/* Website landing pages from tbl_post (Deals, sales, luxury) */}
           <div className="mb-6">
             <Controller
@@ -836,55 +892,6 @@ export default function PackageBasicsForm({
                   helperText="Live pages from the website, such as Hot Deals, Short Breaks, and Luxury Holiday. Separate from Package Categories."
                 />
               )}
-            />
-          </div>
-
-          {/* Tour type — below themes */}
-          <div className="mb-6 max-w-md">
-            <Label htmlFor="tourType" className={labelClass}>
-              Tour type {requiredStar}
-            </Label>
-            <div className="relative">
-              <NativeSelect
-                id="tourType"
-                className={selectClass}
-                {...register("tourType")}
-              >
-                <option value="">Select type</option>
-                <option value="Leisure">Leisure</option>
-                <option value="Adventure">Adventure</option>
-                <option value="Safari">Safari</option>
-                <option value="Honeymoon">Honeymoon</option>
-                <option value="Family">Family</option>
-                <option value="Cruise">Cruise</option>
-                <option value="MICE">MICE</option>
-              </NativeSelect>
-              <Icon
-                name="ChevronDown"
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
-            </div>
-            {errors.tourType && (
-              <p className={errorClass}>{errors.tourType.message}</p>
-            )}
-          </div>
-
-          {/* Frontend Notes — website summary. Important Notes live on Inclusions. */}
-          <div className="mb-6">
-            <Label htmlFor="frontendNotes" className={labelClass}>
-              Frontend Notes
-            </Label>
-            <p className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-              Website summary and marketing copy for the public package page.
-              Booking conditions belong in Inclusions → Important Notes.
-            </p>
-            <Textarea
-              id="frontendNotes"
-              placeholder="Front-end summary or notes shown on the website…"
-              rows={4}
-              className={textareaClass}
-              {...register("frontendNotes")}
             />
           </div>
 

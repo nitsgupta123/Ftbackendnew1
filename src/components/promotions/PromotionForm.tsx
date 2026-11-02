@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useEffect } from "react";
+import { useForm, Controller, type Control, type FieldErrors } from "react-hook-form";
 import { Icon } from "@/components/ui/icons";
+import IsoDateField from "@/components/ui/iso-date-field";
 import PackageMultiSelect from "@/components/promotions/PackageMultiSelect";
 import {
   DISCOUNT_TYPE_OPTIONS,
@@ -14,26 +15,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 
 const inputClass =
   "w-full h-11 px-3 rounded-lg border border-[#E5E7EB] bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B48A2C]/30 focus:border-[#B48A2C]";
 
-const dateInputClass = cn(
-  inputClass,
-  "relative pr-10",
-  "[&::-webkit-calendar-picker-indicator]:absolute",
-  "[&::-webkit-calendar-picker-indicator]:inset-0",
-  "[&::-webkit-calendar-picker-indicator]:h-full",
-  "[&::-webkit-calendar-picker-indicator]:w-full",
-  "[&::-webkit-calendar-picker-indicator]:cursor-pointer",
-  "[&::-webkit-calendar-picker-indicator]:opacity-0"
-);
-
 export interface PromotionFormValues {
   title: string;
-  valid_from: string;
-  valid_to: string;
+  booking_from: string;
+  booking_to: string;
+  travel_from: string;
+  travel_to: string;
   discount_type: "percentage" | "fixed_amount";
   value: number;
   package_keys: string[];
@@ -60,54 +51,78 @@ function toDateInput(value: string | null | undefined): string {
   return `${year}-${month}-${day}`;
 }
 
-function openDatePicker(input: HTMLInputElement | null | undefined) {
-  if (!input) return;
-  input.focus();
-  try {
-    input.showPicker?.();
-  } catch {
-    // Browsers may reject showPicker outside a direct user gesture.
-  }
+function endOnOrAfterStart(start: string, end: string) {
+  if (!start || !end || end >= start) return true;
+  return "End date must be on or after the start date";
 }
 
-function DateField({
-  id,
-  value,
-  onChange,
-  onBlur,
-  name,
+function DateWindow({
+  title,
+  hint,
+  fromId,
+  toId,
+  fromLabel,
+  toLabel,
+  control,
+  errors,
 }: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  onBlur: () => void;
-  name: string;
+  title: string;
+  hint: string;
+  fromId: "booking_from" | "travel_from";
+  toId: "booking_to" | "travel_to";
+  fromLabel: string;
+  toLabel: string;
+  control: Control<PromotionFormValues>;
+  errors: FieldErrors<PromotionFormValues>;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const toError = errors[toId]?.message;
 
   return (
-    <div className="relative">
-      <Input
-        ref={inputRef}
-        id={id}
-        name={name}
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        onClick={() => openDatePicker(inputRef.current)}
-        onPointerDown={(e) => e.stopPropagation()}
-        className={dateInputClass}
-      />
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label="Open calendar"
-        className="absolute right-2 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-        onClick={() => openDatePicker(inputRef.current)}
-      >
-        <Icon name="Calendar" size={16} />
-      </button>
+    <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FB] p-4">
+      <p className="text-sm font-semibold text-[#1F2A44]">{title}</p>
+      <p className="text-xs text-gray-400 mt-0.5 mb-3">{hint}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor={fromId} className="block text-sm font-semibold text-[#334155] mb-1.5">
+            {fromLabel}
+          </Label>
+          <Controller
+            control={control}
+            name={fromId}
+            render={({ field }) => (
+              <IsoDateField
+                id={fromId}
+                name={field.name}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+        </div>
+        <div>
+          <Label htmlFor={toId} className="block text-sm font-semibold text-[#334155] mb-1.5">
+            {toLabel}
+          </Label>
+          <Controller
+            control={control}
+            name={toId}
+            rules={{
+              validate: (value, formValues) => endOnOrAfterStart(formValues[fromId], value),
+            }}
+            render={({ field }) => (
+              <IsoDateField
+                id={toId}
+                name={field.name}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          {toError && <p className="mt-1 text-xs text-red-600">{toError}</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -131,8 +146,10 @@ export default function PromotionForm({
   } = useForm<PromotionFormValues>({
     defaultValues: {
       title: initialData?.title ?? "",
-      valid_from: toDateInput(initialData?.valid_from),
-      valid_to: toDateInput(initialData?.valid_to),
+      booking_from: toDateInput(initialData?.booking_from),
+      booking_to: toDateInput(initialData?.booking_to),
+      travel_from: toDateInput(initialData?.travel_from),
+      travel_to: toDateInput(initialData?.travel_to),
       discount_type: initialData?.discount_type ?? "percentage",
       value: initialData?.value ?? 15,
       package_keys: initialData?.package_keys ?? [],
@@ -144,8 +161,10 @@ export default function PromotionForm({
     if (initialData) {
       reset({
         title: initialData.title,
-        valid_from: toDateInput(initialData.valid_from),
-        valid_to: toDateInput(initialData.valid_to),
+        booking_from: toDateInput(initialData.booking_from),
+        booking_to: toDateInput(initialData.booking_to),
+        travel_from: toDateInput(initialData.travel_from),
+        travel_to: toDateInput(initialData.travel_to),
         discount_type: initialData.discount_type,
         value: initialData.value,
         package_keys: initialData.package_keys,
@@ -172,43 +191,29 @@ export default function PromotionForm({
           )}
         </div>
 
-        <div className="md:col-span-3">
-          <Label htmlFor="valid_from" className="block text-sm font-semibold text-[#334155] mb-1.5">
-            Valid From
-          </Label>
-          <Controller
-            control={control}
-            name="valid_from"
-            render={({ field }) => (
-              <DateField
-                id="valid_from"
-                name={field.name}
-                value={field.value}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-              />
-            )}
-          />
-        </div>
+      </div>
 
-        <div className="md:col-span-3">
-          <Label htmlFor="valid_to" className="block text-sm font-semibold text-[#334155] mb-1.5">
-            Valid To
-          </Label>
-          <Controller
-            control={control}
-            name="valid_to"
-            render={({ field }) => (
-              <DateField
-                id="valid_to"
-                name={field.name}
-                value={field.value}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-              />
-            )}
-          />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DateWindow
+          title="Booking window"
+          hint="Dates the customer must book for this offer to apply."
+          fromId="booking_from"
+          toId="booking_to"
+          fromLabel="Valid From"
+          toLabel="Valid To"
+          control={control}
+          errors={errors}
+        />
+        <DateWindow
+          title="Travel window"
+          hint="Travel dates this offer applies to."
+          fromId="travel_from"
+          toId="travel_to"
+          fromLabel="From date"
+          toLabel="To date"
+          control={control}
+          errors={errors}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

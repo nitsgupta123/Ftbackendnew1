@@ -4,8 +4,12 @@ export type PromotionStatus = "active" | "inactive";
 export interface PromotionRecord {
   id: number;
   title: string;
-  valid_from: string | null;
-  valid_to: string | null;
+  /** Dates the customer must book for this offer to apply. */
+  booking_from: string | null;
+  booking_to: string | null;
+  /** Travel dates this offer applies to. Same kind of range as a Pricing season. */
+  travel_from: string | null;
+  travel_to: string | null;
   discount_type: PromotionDiscountType;
   value: number;
   package_keys: string[];
@@ -32,8 +36,10 @@ export const SAMPLE_PROMOTIONS: PromotionRecord[] = [
   {
     id: 1,
     title: "Global Price Offer",
-    valid_from: null,
-    valid_to: null,
+    booking_from: null,
+    booking_to: null,
+    travel_from: null,
+    travel_to: null,
     discount_type: "percentage",
     value: 15,
     package_keys: ["wizard:1"],

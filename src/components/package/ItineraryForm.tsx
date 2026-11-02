@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../ui/icons";
 import type { ItineraryData, ItineraryDay } from "@/lib/package-types";
 import {
@@ -171,20 +171,44 @@ interface DayCardProps {
   onChange: (day: ItineraryDay) => void;
 }
 
+/** App header is h-16 (64px). Keep the day heading clear of it. */
+const DAY_HEADER_SCROLL_OFFSET = 96;
+
+function scrollDayTitleIntoView(card: HTMLElement) {
+  const top = card.getBoundingClientRect().top + window.scrollY - DAY_HEADER_SCROLL_OFFSET;
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "auto" });
+}
+
 function DayCard({ day, isOpen, onToggle, onChange }: DayCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const wasOpen = useRef(isOpen);
+  const alignPending = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const justOpened = isOpen && !wasOpen.current;
     wasOpen.current = isOpen;
-    if (!justOpened) return;
+    if (justOpened) alignPending.current = true;
+    if (!isOpen) {
+      alignPending.current = false;
+      return;
+    }
+    if (!alignPending.current) return;
 
-    // Wait a frame so the expanded panel is in the DOM before scrolling.
+    const align = () => {
+      const card = cardRef.current;
+      if (!card) return;
+      scrollDayTitleIntoView(card);
+    };
+
+    align();
+    // A second pass catches layout from the day that just collapsed, and
+    // keeps focus on the title from pushing the heading back under the header.
     const frame = window.requestAnimationFrame(() => {
-      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      align();
       titleInputRef.current?.focus({ preventScroll: true });
+      align();
+      alignPending.current = false;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
@@ -204,7 +228,7 @@ function DayCard({ day, isOpen, onToggle, onChange }: DayCardProps) {
   return (
     <div
       ref={cardRef}
-      className="bg-white rounded-[16px] border border-[#E5E7EB] shadow-sm overflow-hidden scroll-mt-6"
+      className="bg-white rounded-[16px] border border-[#E5E7EB] shadow-sm overflow-hidden scroll-mt-24"
     >
       <button
         type="button"

@@ -13,6 +13,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerPackageRoutes } from "./routes/packages";
 import { registerLegacyAssetRoutes } from "./routes/legacy-assets";
 import { registerCategoryRoutes } from "./routes/categories";
+import { registerPackageCatalogRoutes } from "./routes/package-catalog";
 import { registerUserRoutes } from "./routes/users";
 import { registerPricingRulesRoutes } from "./routes/pricing-rules";
 import { registerPackageTemplateRoutes } from "./routes/package-templates";
@@ -72,6 +73,8 @@ async function buildServer() {
   await app.register(registerAuthRoutes, { prefix: "/api/auth" });
   await app.register(registerPackageRoutes, { prefix: "/api/packages" });
   await app.register(registerCategoryRoutes, { prefix: "/api/categories" });
+  await app.register(registerPackageCatalogRoutes("type"), { prefix: "/api/package-types" });
+  await app.register(registerPackageCatalogRoutes("theme"), { prefix: "/api/package-themes" });
   await app.register(registerUserRoutes, { prefix: "/api/users" });
   await app.register(registerPricingRulesRoutes, { prefix: "/api/pricing-rules" });
   await app.register(registerPackageTemplateRoutes, { prefix: "/api/package-templates" });

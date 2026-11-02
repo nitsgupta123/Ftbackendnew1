@@ -188,7 +188,8 @@ function renderOverview(
   addRow(rows, "Package name", basics?.packageTitle || pkg.package_title);
   addRow(rows, "Supplier package", pkg.supplier_source?.supplierPackageName);
   addRow(rows, "Duration", durationLabel(basics));
-  addRow(rows, "Tour type", basics?.tourType);
+  addRow(rows, "Package type", basics?.tourType);
+  addRow(rows, "Package themes", basics?.packageThemes?.filter(Boolean).join(", "));
   addRow(rows, "Package mode", basics?.packageMode);
   addRow(rows, "Runs", basics?.runsCustom || basics?.runs);
   addRow(rows, "Countries", basics?.countriesCovered);

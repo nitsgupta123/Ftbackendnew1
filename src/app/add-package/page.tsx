@@ -44,6 +44,11 @@ import type { SupplierFormValues, PackageBasicsValues } from "@/lib/validation";
 import { usePermissions } from "@/components/auth/PermissionsProvider";
 import { PACKAGE_STEP_PERMISSION_KEYS } from "@/lib/permission-types";
 
+function addPackageUrl(query = "") {
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "/panel";
+  return `${base}/add-package${query ? `?${query}` : ""}`;
+}
+
 export default function AddPackagePage() {
   const searchParams = useSearchParams();
   const { can } = usePermissions();
@@ -147,7 +152,7 @@ export default function AddPackagePage() {
       setCurrentStep(saved.current_step || result.current_step);
       setAppliedTemplateName(result.template.name);
       setSaveSuccess(`Template "${result.template.name}" applied — start at step ${result.current_step}`);
-      window.history.replaceState(null, "", `/add-package?id=${saved.id}`);
+      window.history.replaceState(null, "", addPackageUrl(`id=${saved.id}`));
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Failed to apply template");
     } finally {
@@ -175,7 +180,7 @@ export default function AddPackagePage() {
     setCurrentStep(step);
     const params = new URLSearchParams(window.location.search);
     params.set("step", String(step));
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    window.history.replaceState(null, "", addPackageUrl(params.toString()));
   };
 
   const scrollStepToTop = () => {
@@ -237,7 +242,7 @@ export default function AddPackagePage() {
 
       if (!packageId) {
         setPackageId(saved.id);
-        window.history.replaceState(null, "", `/add-package?id=${saved.id}`);
+        window.history.replaceState(null, "", addPackageUrl(`id=${saved.id}`));
       }
 
       setSaveSuccess(
@@ -345,7 +350,7 @@ export default function AddPackagePage() {
       setCurrentStep(saved.current_step || 1);
       setAppliedTemplateName(null);
       setSaveSuccess(`Duplicated "${source.package_title || "package"}" as a new draft`);
-      window.history.replaceState(null, "", `/add-package?id=${saved.id}`);
+      window.history.replaceState(null, "", addPackageUrl(`id=${saved.id}`));
       window.requestAnimationFrame(scrollStepToTop);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Failed to duplicate package");
