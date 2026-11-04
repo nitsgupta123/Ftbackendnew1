@@ -32,19 +32,17 @@ export const DISCOUNT_TYPE_OPTIONS: { value: PromotionDiscountType; label: strin
   { value: "fixed_amount", label: "Fixed Amount" },
 ];
 
-export const SAMPLE_PROMOTIONS: PromotionRecord[] = [
-  {
-    id: 1,
-    title: "Global Price Offer",
-    booking_from: null,
-    booking_to: null,
-    travel_from: null,
-    travel_to: null,
-    discount_type: "percentage",
-    value: 15,
-    package_keys: ["wizard:1"],
-    status: "active",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+export interface CreatePromotionInput {
+  title: string;
+  booking_from?: string | null;
+  booking_to?: string | null;
+  travel_from?: string | null;
+  travel_to?: string | null;
+  discount_type: PromotionDiscountType;
+  value: number;
+  /** Empty means the offer applies to every package. */
+  package_keys?: string[];
+  status?: PromotionStatus;
+}
+
+export type UpdatePromotionInput = Partial<CreatePromotionInput>;

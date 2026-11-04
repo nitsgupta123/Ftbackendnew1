@@ -48,6 +48,7 @@ function packageCountLabel(promotion: PromotionRecord): string {
 interface PromotionListTableProps {
   promotions: PromotionRecord[];
   loading?: boolean;
+  canDelete?: boolean;
   onEdit: (promotion: PromotionRecord) => void;
   onToggleStatus: (promotion: PromotionRecord) => void;
   onDelete: (promotion: PromotionRecord) => void;
@@ -56,6 +57,7 @@ interface PromotionListTableProps {
 export default function PromotionListTable({
   promotions,
   loading = false,
+  canDelete = false,
   onEdit,
   onToggleStatus,
   onDelete,
@@ -153,15 +155,17 @@ export default function PromotionListTable({
                   >
                     <Icon name="Power" size={16} />
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => onDelete(promotion)}
-                    className="inline-flex items-center justify-center size-8 rounded-lg text-[#DC2626] hover:bg-red-50 transition-colors"
-                    title="Delete"
-                  >
-                    <Icon name="Trash2" size={16} />
-                  </Button>
+                  {canDelete ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onDelete(promotion)}
+                      className="inline-flex items-center justify-center size-8 rounded-lg text-[#DC2626] hover:bg-red-50 transition-colors"
+                      title="Delete"
+                    >
+                      <Icon name="Trash2" size={16} />
+                    </Button>
+                  ) : null}
                 </div>
               </TableCell>
             </TableRow>

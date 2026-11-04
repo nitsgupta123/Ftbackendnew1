@@ -26,6 +26,7 @@ import { registerSettingsRoutes } from "./routes/settings";
 import { registerMediaRoutes } from "./routes/media";
 import { registerPermissionRoutes } from "./routes/permissions";
 import { registerSupplierRoutes } from "./routes/suppliers";
+import { registerPromotionRoutes } from "./routes/promotions";
 import { isDbConnectionError, verifyDbConnection } from "../src/lib/db";
 import { startBlogPublishScheduler } from "./jobs/blog-publish-scheduler";
 
@@ -87,6 +88,7 @@ async function buildServer() {
   await app.register(registerMediaRoutes, { prefix: "/api/media" });
   await app.register(registerPermissionRoutes, { prefix: "/api/permissions" });
   await app.register(registerSupplierRoutes, { prefix: "/api/suppliers" });
+  await app.register(registerPromotionRoutes, { prefix: "/api/promotions" });
   await app.register(registerLegacyAssetRoutes, { prefix: "/api/legacy-assets" });
 
   app.setErrorHandler((error, _request, reply) => {

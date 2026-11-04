@@ -20,6 +20,7 @@
     "db:migrate:categories": "node scripts/run-migrate-categories.mjs",
     "db:migrate:package-catalog": "node scripts/run-migrate-package-types-themes.mjs",
     "db:migrate:pricing-rules": "node scripts/run-migrate-pricing-rules.mjs",
+    "db:migrate:promotions": "node scripts/run-migrate-promotions.mjs",
     "db:migrate:templates": "node scripts/run-migrate-package-templates.mjs",
     "db:migrate:settings": "node scripts/run-migrate-settings.mjs",
     "db:migrate:quote-emails": "node scripts/run-migrate-quote-management-emails.mjs",

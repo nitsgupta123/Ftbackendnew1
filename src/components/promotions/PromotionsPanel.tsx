@@ -1,29 +1,29 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Icon } from "@/components/ui/icons";
 import PromotionListTable from "@/components/promotions/PromotionListTable";
 import PromotionForm, { type PromotionFormValues } from "@/components/promotions/PromotionForm";
 import { listAllPackages } from "@/lib/package-api";
 import {
-  SAMPLE_PROMOTIONS,
+  createPromotion,
+  deletePromotion,
+  listPromotions,
+  updatePromotion,
+} from "@/lib/promotion-api";
+import {
   packageOptionKey,
   type PromotionPackageOption,
   type PromotionRecord,
+  type PromotionStatus,
 } from "@/lib/promotion-types";
 import { Button } from "@/components/ui/button";
 
 type FormMode = "create" | "edit" | null;
 
-let nextId = SAMPLE_PROMOTIONS.length + 1;
-
-function formValuesToRecord(
-  data: PromotionFormValues,
-  existing?: PromotionRecord | null
-): PromotionRecord {
-  const now = new Date().toISOString();
+function toPayload(data: PromotionFormValues) {
   return {
-    id: existing?.id ?? nextId++,
     title: data.title.trim(),
     booking_from: data.booking_from || null,
     booking_to: data.booking_to || null,
@@ -32,9 +32,7 @@ function formValuesToRecord(
     discount_type: data.discount_type,
     value: data.value,
     package_keys: data.package_keys,
-    status: data.is_active ? "active" : "inactive",
-    created_at: existing?.created_at ?? now,
-    updated_at: now,
+    status: (data.is_active ? "active" : "inactive") as PromotionStatus,
   };
 }
 
@@ -43,12 +41,29 @@ export interface PromotionsPanelHandle {
 }
 
 const PromotionsPanel = forwardRef<PromotionsPanelHandle>(function PromotionsPanel(_, ref) {
-  const [promotions, setPromotions] = useState<PromotionRecord[]>(SAMPLE_PROMOTIONS);
+  const { user } = useAuth();
+  const canDelete = user?.role === "super_admin";
+  const [promotions, setPromotions] = useState<PromotionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [packageOptions, setPackageOptions] = useState<PromotionPackageOption[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editingPromotion, setEditingPromotion] = useState<PromotionRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const loadPromotions = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const result = await listPromotions();
+      setPromotions(result.promotions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load promotions");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
   const loadPackages = useCallback(async () => {
     setPackagesLoading(true);
@@ -64,11 +79,7 @@ const PromotionsPanel = forwardRef<PromotionsPanelHandle>(function PromotionsPan
           .sort((a, b) => a.label.localeCompare(b.label))
       );
     } catch {
-      setPackageOptions([
-        { key: "wizard:1", label: "9 Days Japan Golden Route with Hiroshima & Mount Fuji from Osaka" },
-        { key: "wizard:2", label: "9 Days Kazakhstan & Kyrgyzstan Romantic Honeymoon Tour" },
-        { key: "wizard:3", label: "9 Days Melbourne and Sydney Highlights Tour" },
-      ]);
+      setPackageOptions([]);
     } finally {
       setPackagesLoading(false);
     }
@@ -76,9 +87,10 @@ const PromotionsPanel = forwardRef<PromotionsPanelHandle>(function PromotionsPan
 
   useEffect(() => {
     queueMicrotask(() => {
+      void loadPromotions();
       void loadPackages();
     });
-  }, [loadPackages]);
+  }, [loadPromotions, loadPackages]);
 
   function openCreate() {
     setEditingPromotion(null);
@@ -101,51 +113,64 @@ const PromotionsPanel = forwardRef<PromotionsPanelHandle>(function PromotionsPan
 
   async function handleFormSubmit(data: PromotionFormValues) {
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    const record = formValuesToRecord(data, editingPromotion);
-
-    if (formMode === "edit" && editingPromotion) {
-      setPromotions((prev) =>
-        prev.map((item) => (item.id === editingPromotion.id ? record : item))
-      );
-    } else {
-      setPromotions((prev) => [record, ...prev]);
-    }
-
-    setIsSaving(false);
-    setFormMode(null);
-    setEditingPromotion(null);
-  }
-
-  function handleToggleStatus(promotion: PromotionRecord) {
-    setPromotions((prev) =>
-      prev.map((item) =>
-        item.id === promotion.id
-          ? {
-              ...item,
-              status: item.status === "active" ? "inactive" : "active",
-              updated_at: new Date().toISOString(),
-            }
-          : item
-      )
-    );
-  }
-
-  function handleDelete(promotion: PromotionRecord) {
-    if (!window.confirm(`Delete "${promotion.title}"? This cannot be undone.`)) return;
-    setPromotions((prev) => prev.filter((item) => item.id !== promotion.id));
-    if (editingPromotion?.id === promotion.id) {
+    setError(null);
+    try {
+      const payload = toPayload(data);
+      if (formMode === "edit" && editingPromotion) {
+        await updatePromotion(editingPromotion.id, payload);
+      } else {
+        await createPromotion(payload);
+      }
+      await loadPromotions(true);
       setFormMode(null);
       setEditingPromotion(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save promotion");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleToggleStatus(promotion: PromotionRecord) {
+    setError(null);
+    try {
+      const status: PromotionStatus = promotion.status === "active" ? "inactive" : "active";
+      const { promotion: updated } = await updatePromotion(promotion.id, { status });
+      setPromotions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update promotion");
+    }
+  }
+
+  async function handleDelete(promotion: PromotionRecord) {
+    if (!window.confirm(`Delete "${promotion.title}"? This cannot be undone.`)) return;
+    setError(null);
+    try {
+      await deletePromotion(promotion.id);
+      setPromotions((prev) => prev.filter((item) => item.id !== promotion.id));
+      if (editingPromotion?.id === promotion.id) {
+        setFormMode(null);
+        setEditingPromotion(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete promotion");
     }
   }
 
   return (
     <>
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <Icon name="AlertCircle" size={16} className="shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
         <PromotionListTable
           promotions={promotions}
+          loading={loading}
+          canDelete={canDelete}
           onEdit={openEdit}
           onToggleStatus={handleToggleStatus}
           onDelete={handleDelete}

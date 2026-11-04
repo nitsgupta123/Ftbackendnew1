@@ -10,7 +10,11 @@ import {
   PACKAGE_DETAIL_SECTIONS } from
 "@/lib/package-detail-sections";
 import type { PackageRecord } from "@/lib/package-types";
-import { formatPackageDateTime } from "@/lib/format-date";import { Button } from "@/components/ui/button";
+import { formatPackageDateTime } from "@/lib/format-date";
+import { Button } from "@/components/ui/button";
+import PackageConsultantBrief, {
+  consultantBriefHeadline,
+} from "@/components/packages/PackageConsultantBrief";
 
 interface PackageDetailsModalProps {
   pkg: PackageRecord | null;
@@ -250,7 +254,8 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
   const [details, setDetails] = useState<PackageRecord | null>(pkg);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const summaryCardRef = useRef<HTMLDListElement | null>(null);
+  const [showBuilderFields, setShowBuilderFields] = useState(false);
+  const summaryCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!pkg) return;
@@ -258,6 +263,7 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
     queueMicrotask(() => {
       setDetails(pkg);
       setError(null);
+      setShowBuilderFields(false);
     });
 
     if (!isWizardPackage(pkg)) return;
@@ -378,12 +384,12 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
         role="dialog"
         aria-modal="true"
         aria-labelledby="package-details-title"
-        className="relative z-10 flex w-full max-w-4xl max-h-[90vh] flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        className="relative z-10 flex w-full max-w-5xl max-h-[90vh] flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
         
         <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-5">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#B48A2C]">
-              Package details
+              Consultant brief
             </p>
             <h2
               id="package-details-title"
@@ -392,7 +398,7 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
               {details.package_title || "Untitled package"}
             </h2>
             <p className="mt-1 text-sm text-gray-500 truncate">
-              {details.slug || `ID #${details.id}`}
+              {consultantBriefHeadline(details) || details.slug || `ID #${details.id}`}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -433,53 +439,33 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
             </div>
           }
 
-          <dl
-            ref={summaryCardRef}
-            className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4"
-          >
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Status</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900 capitalize">{statusLabel}</dd>
+          <div ref={summaryCardRef} className="space-y-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+              <span className="inline-flex rounded-full bg-[#F3F4F6] px-2 py-0.5 font-medium capitalize text-[#1F2A44]">
+                {statusLabel}
+              </span>
+              <span>{isWizardPackage(details) ? "Wizard" : "Legacy"} · step {details.current_step}/14</span>
+              <span>Updated {formatPackageDateTime(details.updated_at)}{details.updated_by ? ` · ${details.updated_by}` : ""}</span>
             </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Step</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900">
-                {details.current_step}/14
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Source</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900">
-                {isWizardPackage(details) ? "Wizard" : "Legacy"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Supplier</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900">
-                {details.supplier_name || "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Created</dt>
-              <dd className="mt-1 text-sm text-gray-700">{formatPackageDateTime(details.created_at)}</dd>
-              <dd className="text-xs text-gray-500">{details.created_by ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Updated</dt>
-              <dd className="mt-1 text-sm text-gray-700">{formatPackageDateTime(details.updated_at)}</dd>
-              <dd className="text-xs text-gray-500">{details.updated_by ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Package ID</dt>
-              <dd className="mt-1 text-sm text-gray-700">{details.package_id}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-gray-500 uppercase">Record ID</dt>
-              <dd className="mt-1 text-sm text-gray-700">{details.id}</dd>
-            </div>
-          </dl>
 
-          <div className="space-y-5">
+            <PackageConsultantBrief pkg={details} />
+          </div>
+
+          <div className="mt-6 border-t border-[#E5E7EB] pt-4">
+            <button
+              type="button"
+              onClick={() => setShowBuilderFields((open) => !open)}
+              className="text-sm font-medium text-[#1F2A44] hover:text-[#B48A2C]"
+            >
+              {showBuilderFields ? "Hide builder fields" : "Show every builder field"}
+            </button>
+            <p className="mt-1 text-xs text-gray-400">
+              The raw step-by-step fields, including SEO, media, and review notes.
+            </p>
+          </div>
+
+          {showBuilderFields && (
+          <div className="mt-4 space-y-5">
             {PACKAGE_DETAIL_SECTIONS.map((section) => {
               const sectionData = details[section.key];
               const isEmpty =
@@ -530,6 +516,7 @@ export default function PackageDetailsModal({ pkg, onClose }: PackageDetailsModa
 
             })}
           </div>
+          )}
         </div>
       </div>
     </div>);

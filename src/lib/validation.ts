@@ -388,3 +388,80 @@ export const updatePageSchema = createPageSchema.partial();
 
 export type CreatePageFormValues = z.infer<typeof createPageSchema>;
 export type UpdatePageFormValues = z.infer<typeof updatePageSchema>;
+
+const promotionDateSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Use a valid date")
+  .optional()
+  .nullable();
+
+const promotionPackageKeySchema = z
+  .string()
+  .trim()
+  .regex(/^(wizard|legacy):\d+$/, "Invalid package selection");
+
+function refinePromotionWindows(
+  data: {
+    booking_from?: string | null;
+    booking_to?: string | null;
+    travel_from?: string | null;
+    travel_to?: string | null;
+    discount_type?: "percentage" | "fixed_amount";
+    value?: number;
+  },
+  ctx: z.RefinementCtx
+) {
+  if (data.booking_from && data.booking_to && data.booking_to < data.booking_from) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["booking_to"],
+      message: "Booking end date must be on or after the start date",
+    });
+  }
+  if (data.travel_from && data.travel_to && data.travel_to < data.travel_from) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["travel_to"],
+      message: "Travel end date must be on or after the start date",
+    });
+  }
+  if (data.discount_type === "percentage" && data.value != null && data.value > 100) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["value"],
+      message: "Percentage cannot be more than 100",
+    });
+  }
+}
+
+export const createPromotionSchema = z
+  .object({
+    title: z.string().trim().min(1, "Promotion title is required").max(255),
+    booking_from: promotionDateSchema,
+    booking_to: promotionDateSchema,
+    travel_from: promotionDateSchema,
+    travel_to: promotionDateSchema,
+    discount_type: z.enum(["percentage", "fixed_amount"]),
+    value: z.number().positive("Value must be greater than 0"),
+    package_keys: z.array(promotionPackageKeySchema).max(500).optional(),
+    status: z.enum(["active", "inactive"]).optional(),
+  })
+  .superRefine(refinePromotionWindows);
+
+export const updatePromotionSchema = z
+  .object({
+    title: z.string().trim().min(1, "Promotion title is required").max(255).optional(),
+    booking_from: promotionDateSchema,
+    booking_to: promotionDateSchema,
+    travel_from: promotionDateSchema,
+    travel_to: promotionDateSchema,
+    discount_type: z.enum(["percentage", "fixed_amount"]).optional(),
+    value: z.number().positive("Value must be greater than 0").optional(),
+    package_keys: z.array(promotionPackageKeySchema).max(500).optional(),
+    status: z.enum(["active", "inactive"]).optional(),
+  })
+  .superRefine(refinePromotionWindows);
+
+export type CreatePromotionFormValues = z.infer<typeof createPromotionSchema>;
+export type UpdatePromotionFormValues = z.infer<typeof updatePromotionSchema>;

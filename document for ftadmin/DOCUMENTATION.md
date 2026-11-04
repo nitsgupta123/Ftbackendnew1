@@ -9,6 +9,8 @@
 
 This document is a researched inventory of the running system: architecture, folder layout, database, HTTP API, frontend routes, file/function catalog, and every error the backend currently returns. There is **no formal error-ID catalog** in the codebase (no `ERR_*` / `FT-*` codes). Errors are HTTP status + `{ error: string }` payloads. Those messages are listed in [§10 Error catalog](#10-error-catalog).
 
+For a section-by-section explanation of how the API behaves, see [BACKEND.md](BACKEND.md).
+
 ---
 
 ## Table of contents
